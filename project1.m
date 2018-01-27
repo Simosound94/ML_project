@@ -1,3 +1,11 @@
+%
+% NOTE:
+% 1) Run section per section
+% 2) Some data as been precomputed and saved (V,d of PCA and K of kernel),
+% if not available, over the load instruction there is the instruction that generated that data
+%
+
+
 clear;
 clc;
 close all;
@@ -20,6 +28,9 @@ fprintf('%s\t', dictionary{I(1:40)});
 fprintf('\n');
 fprintf('%d\t', count(1:40));
 fprintf('\n');
+
+%Popular words:
+%
 % time	man	day	thing	eye	said	did	old	like	life	
 % night	thought	little	great	long	saw	say	house	came	
 % hand	year	word	death	heart	mind	place	friend	
@@ -28,6 +39,7 @@ fprintf('\n');
 
 
 %% Count number of words
+% Add the number of words as a feature
 count = sum(X,2);
 X = [X, count];
 [n,d] = size(X);
@@ -37,13 +49,15 @@ dictionary{end+1} = 'num_words';
 
 %% Normalization
 
-% ONLY MEAN NORMALIZED DATA
+% Mean normalization of the data
 for j = 1:d
     me = mean(X(:,j));
     X(:,j) = (X(:,j)-me);
 end
 
 %% High dimension distances
+
+%Utilizzo una partizione dei sample per questioni compututazionali
 
 i = randperm(n);
 size_sample = 4000;
@@ -67,24 +81,19 @@ ylabel('% points')
 %% Compute approximation cost of PCA
 % Note: Data mean normalized
 
-%Per vedere direzioni di massima varianza dobbiamo usare PCA su dati solo
-%mean normalized, se li facciamo anche variance normalized tutte le
-%features risuteranno appartenere a [0, 1] ed il risultato non darà le
-%parole più comuni
-
 
 %[V, d] = PCA(X, 13000); %per velocità ho già salvato il risultato
 load('Vd_only_mean_norm_PCA');
 
 
-% features = [3 10 100 1000 2000 3000 4000 5000 6000 7000 8000 9000 10000 11000 12000 13000];
-% c=[];
-% for k =features
-%    cost =  sum(sum((X - X*V(:,1:k)*V(:,1:k)').^2,2))/n;
-%    c = [c cost];
-%    fprintf('k = %d \t cost= %f\n',k,cost);    
-% end
-% plot(features, c);
+features = [3 10 100 1000 2000 3000 4000 5000 6000 7000 8000 9000 10000 11000 12000 13000];
+c=[];
+for k =features
+   cost =  sum(sum((X - X*V(:,1:k)*V(:,1:k)').^2,2))/n;
+   c = [c cost];
+   fprintf('k = %d \t cost= %f\n',k,cost);    
+end
+plot(features, c);
 
 % 
 % k = 3 	 cost= 11.477598
@@ -117,8 +126,8 @@ xlabel('num of features');
 
 
 % la prima direzione V(:,1) è quella dove vi è più varianza
-% i componenti maggiori di questa direzione sono quelli ove i dati vengono
-% proiettati di più
+% i componenti maggiori di questa direzione sono quelli ove i dati hanno
+% più varianza
 [~, I] = sort(V(:,1),'descend'); %indici elementi più importanti
 fprintf('max components: %s\n',sprintf('%s, ', dictionary{I(1:10)}));
 
@@ -136,19 +145,14 @@ Ytr(Y(:,2)==1) = 1;
 Ytr(Y(:,2)==1) = 2;
 Ytr(Y(:,3)==1) = 3;
 figure;
-scatter3(X_proj(:,1),X_proj(:,2),X_proj(:,3),25,Ytr);
-figure;
-
-scatter(X_proj(:,1),X_proj(:,2),25,Ytr);
-[~, I] = sort(V(:,1),'descend');
-xlabel([dictionary{I(1)},', ',dictionary{I(2)},', ',dictionary{I(3)}]);
-[~, I] = sort(V(:,2),'descend');
-ylabel([dictionary{I(1)},', ',dictionary{I(2)},', ',dictionary{I(3)}]);
-xlim([0 40]);
-ylim([-2 4]);
+scatter3(X_proj(:,1),X_proj(:,2),X_proj(:,3),25,Ytr); %(in the slides is shown this image, zoomed and rotated)
 
 
-%% Linear regression with OVO
+%% Regularized Least Squares (RLS)  with OVO (One vs One)
+
+%OVO: this is a multiclassif problem, in order to reduce the computation
+%complexity we will solve only problems as "class_i vs class_j" and then merge
+%results according to OVO
 
 c = 3;
 nLambda = 15;
@@ -158,7 +162,9 @@ nK=5;
 [~,YP] = max(Y, [],2);
 errTrain = [];
 errTest = [];
-%prendo ugual numero di tutte le classi per fare "stratified sampling"
+% prendo ugual numero di tutte le classi per fare "stratified sampling"
+% i1: indici dei sample con Y==1, organizzati in nK liste, per fare cross
+% validation
 idx = find(YP ==1);
 i1 = idx(randperm(length(idx)))';
 idx = find(YP ==2);
@@ -177,11 +183,12 @@ for lambda = logspace(-4,4,nLambda)
     fprintf('\n%f\n',lambda);
     errTr = 0;
     errTe= 0;
+    %cross validation over k
     for k =1:nK
         fprintf('%d\t',k);
-        iv = [i1(k,:) i2(k,:), i3(k,:)]';
+        iv = [i1(k,:) i2(k,:), i3(k,:)]'; %validation
         nv = length(iv);
-        il=[];
+        il=[]; %learning
         for i = 1:nK
             if(i ~=k)
                 il= [il i1(i,:) i2(i,:) i3(i,:)];
@@ -201,7 +208,7 @@ for lambda = logspace(-4,4,nLambda)
                 ilp = [il(fm); il(fp)]; %per questo problema prendo solo gli indici
                 % del training set (il) per cui i label siano i o j
                 YPP = [-ones(sum(fm),1); ones(sum(fp),1)];
-                meanY = mean(YPP);
+                meanY = mean(YPP); %tolgo la media per sistemare il bias b
                 YPP = YPP - meanY*ones(sum(fm)+sum(fp),1);
                 w = regularizedLSTrain(X(ilp, :) , YPP, lambda);
                 W =[W w];
@@ -269,6 +276,7 @@ end
 % lambda = 2682.695795 Train error= 0.524598 Test error= 0.533640
 % lambda = 10000.000000 Train error= 0.587791 Test error= 0.589783
 
+%% RLS Results:
 
 lambda = [0.000100, 0.000373, 0.001389, 0.005179, 0.019307, 0.071969, 0.268270, 1.000000, 3.727594, 13.894955, 51.794747, 193.069773, 719.685673, 2682.695795 10000.000000];
 trError = [0.003716 0.004227 0.005326 0.006756 0.008748 0.012069 0.017344 0.026117 0.045709 0.086590 0.155773 0.253040 0.384163 0.524598 0.587791];
@@ -281,12 +289,12 @@ hold on
 semilogx(lambda, teError, 'r');
 xlabel('\lambda') % x-axis label
 ylabel('Median error') % y-axis label
-legend('Validation error','Training error');
+legend('Training error','Validation error');
 
 
 
 
-%% Kernel Logistic Regression with OVO
+%% Kernel Regularized Least squares with OVO
 c = 3;
 nLambda = 15;
 nK=5;
@@ -320,11 +328,11 @@ i3 = reshape(i3(:,1:x*nK), [nK,x]);
 load('K_mean_norm.mat')
 
 for lambda = logspace(-4,4,nLambda)
-    % fprintf('\n%f\n',lambda);
+    fprintf('\n%f\n',lambda);
     errTr = 0;
     errTe= 0;
     for k =1:nK
-        %  fprintf('%d\t',k);
+        fprintf('%d\t',k);
         iv = [i1(k,:) i2(k,:), i3(k,:)]';
         nv = length(iv);
         il=[];
@@ -356,7 +364,6 @@ for lambda = logspace(-4,4,nLambda)
                 INDEX{im}= ilp;
             end
         end
-        %    fprintf('tr\t')
         %Test su train e validation
         %TRAINING
         im = 0;
@@ -414,7 +421,7 @@ end
 % lambda = 719.685673 Train error= 0.583461 Test error= 0.583959
 % lambda = 2682.695795 Train error= 0.593870 Test error= 0.594074
 
-
+%% KRLS Results:
 lambda = [0.000100, 0.000373, 0.001389, 0.005179, 0.019307, 0.071969, 0.268270, 1.000000, 3.727594, 13.894955, 51.794747, 193.069773, 719.685673, 2682.695795];
 trError = [0.001456 0.001622  0.002427 0.005172 0.014470 0.047152 0.110626 0.198557 0.298953 0.420894 0.553321 0.574585 0.583461 0.593870];
 teError = [0.308506 0.295479 0.277650 0.254100 0.225441 0.216347 0.236117 0.278876 0.348097 0.447050 0.558621 0.576909 0.583959 0.594074];
@@ -424,11 +431,10 @@ hold on
 semilogx(lambda, teError, 'r');
 xlabel('\lambda') % x-axis label
 ylabel('Median error') % y-axis label
-legend('Validation error','Training error');
+legend('Training error','Validation error');
 
 
-
-%% Kernel Logistic Regression and PCA
+%% Kernel Regularized Least squares  and PCA
 c = 3;
 nLambda = 10;
 lambdaSpace = logspace(-3,3,nLambda);
