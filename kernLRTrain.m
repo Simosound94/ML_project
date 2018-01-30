@@ -19,7 +19,7 @@ function c = kernLRTrain(Xtr, Ytr, kernel, kerpar, lambda, iter, epsilon)
 %            disp(['iter:', num2str(j),'  err:', num2str(tmp)]);
 %         end
     end
-    tmp = sign(kernLRTest(c, K));
-    tmp = sum(Ytr ~=tmp)/n;
-    disp(['iter:', num2str(j),'  err:', num2str(tmp)]);
+%     tmp = sign(kernLRTest(c, K));
+%     tmp = sum(Ytr ~=tmp)/n;
+%     disp(['iter:', num2str(j),'  err:', num2str(tmp)]);
 end

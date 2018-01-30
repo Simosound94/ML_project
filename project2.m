@@ -42,7 +42,8 @@ c = 3;
 nLambda = 10;
 nK=10;
 kernel='gaussian';
-sigma = 9.5; %SIGMA MEAN NORM
+%sigma = 9.5; %SIGMA MEAN NORM
+sigma = 2;
 % derivata da: mean(mean(pdist2(X,X))) scelgo sigma by default come la distanza media tra i punti
 errToStop = 1e-8;
 iter = 100000;
